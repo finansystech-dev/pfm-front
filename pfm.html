@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Milligram provides a minimal setup of styles for a fast and clean starting point. Specially designed for better performance and higher productivity with fewer properties to reset resulting in cleaner code."
+    />
+    <title>Personal Finance Management | Finansystech</title>
+    <link rel="icon" href="images/favicon.ico" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic"
+    />
+    <link rel="stylesheet" href="/lib/normalize.css/normalize.css" />
+    <link rel="stylesheet" href="/lib/milligram/dist/milligram.min.css" />
+    <link rel="stylesheet" href="/styles/main.css" />
+    <link rel="stylesheet" href="/styles/custom.css" />
+
+  </head>
+  <body>
+    <main class="wrapper" id="app">
+      <div class="container">
+        <div class="row">
+          <div class="column months-tabs">
+            <div v-for="availableMonth in availableMonths" class="month-tab" :class="{ active: (availableMonth.id == activeMonthId) }" @click="selectMonth(availableMonth, false)">
+              <span>{{availableMonth.name}}</span>
+            </div>
+          </div>
+
+          <div class="column monthly-chart">
+            <canvas id="month-chart" width="100%" height="100%"></canvas>
+          </div>
+
+          <div class="column monthly-categories">
+
+            <div v-for="category in activeMonth.categories" class="category-item">
+              <div class="category-name">
+                <span>{{category.name}}</span>
+              </div>
+              <div class="category-value">
+                <span>{{parseFloat(category.percentage).toFixed(2)}}%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" v-bind:style="{ backgroundColor: getCategoryColor(category.name), width: category.percentage + '%' }"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="row transactions-container">
+          <ul class="">
+            <li v-for="(transaction, index) in categorizedMonthlyTransactions" :key="index" :class="{'odd': index % 2 !== 0 }">
+              <div class="transaction-label"><span>{{transaction.expense_category}}</span>{{transaction.chargeIdentificator}}</div>
+              <div class="transaction-amount">{{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(transaction.amount)}}</div>
+            </li>
+            <li class="transaction-total">
+              <div class="transaction-label">Total</div>
+              <div class="transaction-amount">{{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(activeMonth.totalAmount)}}</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="row">
+          <div class="column all-available-chart">
+            <canvas id="months-chart" width="100%" max-height="300px"></canvas>
+          </div>
+        </div>
+
+        <br>
+        <button class="button" @click="getUserProfile()">Analisar dados do cliente e rodar Recomendador!</button>
+        <br>
+        
+
+        <div class="row personas" v-if="showProfiler">
+          <div class="column">
+            <span class="persona-label">Categoria mais utilizada: </span><br>
+            <span class="persona-tag" v-for="persona in userProfile">{{persona}}</span>
+          </div>
+          <div class="column">
+            <span class="persona-label" v-if="recommenderData.warnings.old || recommenderData.warnings.short">Warnings:</span><br>
+            <span class="persona-tag" v-if="recommenderData.warnings.old">Dados antigos</span>
+            <span class="persona-tag" v-if="recommenderData.warnings.short">Poucos dados</span>
+          </div>
+        </div>
+
+        <div class="row personas" v-if="showRecommender">
+          <div class="column">
+            <span class="persona-label">Padrão de dados:</span><br>
+            <span class="persona-tag" v-if="!recommenderData.warnings.pattern_categories">Pouca alteração</span>
+            <span class="persona-tag" v-if="recommenderData.warnings.pattern_categories">Muita alteração</span>
+          </div>
+          <div class="column">
+            <span class="persona-label">Variação dos gastos mensais:</span><br>
+            <span class="persona-tag" v-if="recommenderData.warnings.pattern_total">Alta</span>
+            <span class="persona-tag" v-if="!recommenderData.warnings.pattern_total">Baixa</span>
+          </div>
+        </div> 
+
+        <div class="row personas" v-if="showRecommender">
+          <div class="column">
+            <span class="persona-label">Categoria sugerida<br>para minimizar gastos:</span><br>
+            <span class="persona-tag">{{recommenderData.recommender.category}}</span>
+          </div>
+          <div class="column">
+            <span class="persona-label">Média de gastos<br>da categoria:</span><br>
+            <span class="persona-tag">{{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(recommenderData.recommender.mean_month_spendings)}}</span>
+          </div>
+          <div class="column">
+            <span class="persona-label">Quantia sugerida<br>para diminuir os gastos:</span><br>
+            <span class="persona-tag">{{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(recommenderData.recommender.potential)}}</span>
+          </div>
+        </div> 
+
+
+      </div>
+
+      <footer class="footer">
+        <section class="container">
+          <p>
+            Designed by
+            <a target="_blank" href="https://finansystech.com.br"
+              >Finansystech</a
+            >.
+          </p>
+        </section>
+      </footer>
+    </main>
+    
+    <script src="https://unpkg.com/vue@3"></script>
+    <script src="/scripts/chart.min.js"></script>
+    <!-- <script src="/scripts/vue-chart-3.js"></script> -->
+    <script src="/scripts/main.js"></script>
+    <script src="/scripts/axios.min.js"></script>
+    <script src="/scripts/vue-loading.min.js"></script>
+    <link rel="stylesheet" href="/styles/vue-loading.css" />
+
+  
+    <script>
+      monthlyChartContext = null;
+      monthsChartContext = null;
+
+      const app = Vue.createApp({
+        data() {
+          return {
+            message: 'Hello Vue!',
+            loader: null,
+            fullPage: true,
+            monthlyTransactions: [],
+            categorizedMonthlyTransactions: [],
+            availableMonths: [],
+            activeMonthId: null,
+            activeMonth: {},
+            userProfile: [],
+            allMonths: [],
+            loadingMonths: [],
+            loadingQueue: [],
+            isLoading: false,
+            showProfiler: false,
+            showRecommender: false,
+            // recommender data
+            recommenderData: {
+              warnings: {
+                old: false,
+                short: false,
+                pattern_categories: false,
+                pattern_total: false
+              },
+              recommender: {
+                category: "",
+                potential: 0.0,
+                mean_month_spendings: 0.0
+              }
+            }
+          }
+        },
+        methods: {
+          startLoader() {
+              this.loadingQueue.push(1);
+              if( this.loadingQueue.length > 0 && this.isLoading == false){
+                console.log('loadingQueue SHOW');
+                this.loader = this.$loading.show({
+                    // Optional parameters
+                    container: this.fullPage ? null : this.$refs.formContainer,
+                    canCancel: false,
+                    onCancel: this.onCancel,
+                });
+                this.isLoading = true;
+              }
+            },
+            stopLoader() {
+              if(this.loadingQueue.length == 0){
+                return;
+              }
+              this.loadingQueue.pop();
+              console.log('loadingQueue POP', this.loadingQueue.length);
+              if(this.loadingQueue.length == 0 && this.isLoading == true){
+                console.log('loadingQueue HIDE');
+                this.loader.hide();
+                this.isLoading = false;
+              }
+            },
+            onCancel() {
+                console.log('User cancelled the loader.')
+            },
+            getProfileByIndex(index) {
+              if(index == 0){
+                return 'Casa';
+              } else if(index == 1){
+                return 'Transporte';
+              } else if(index == 2){
+                return 'Seguros';
+              } else if(index == 3){
+                return 'Alimentação';
+              } else if(index == 4){
+                return 'Mercado';
+              } else if(index == 5){
+                return 'Compras';
+              } else if(index == 6){
+                return 'Saúde e bem-estar';
+              } else if(index == 7){
+                return 'Lazer e viagem';
+              } else if(index == 8){
+                return 'Educação';
+              }
+              return 'Outros';
+            },
+            getUserRecommender(profilerData){
+              const self = this;
+
+              // make request
+              const headers = { 
+                'Content-Type': 'application/json;charset=UTF-8',
+                'Access-Control-Allow-Origin' : '*'
+              };
+              
+              this.startLoader();
+              axios.post('https://api.platform.smartfy-wrk.smartfylabs.com/pfm/recommender', profilerData, {headers: headers})
+              .then(response => {
+                console.log('recommender response', response.data);
+                self.recommenderData = {
+                  warnings: {
+                    old: response.data.warnings[0][1],
+                    short: response.data.warnings[1][1],
+                    pattern_categories: response.data.warnings[2][1],
+                    pattern_total: response.data.warnings[3][1]
+                  },
+                  recommender: {
+                    category: response.data.recommender[0][1],
+                    potential: response.data.recommender[1][1],
+                    mean_month_spendings: response.data.recommender[2][1]
+                  }
+                };
+                self.showRecommender = true;
+                self.stopLoader();
+              })
+              .catch(error => {
+                console.log('recommender error', error);
+                this.stopLoader();
+              });
+              
+            },
+            getUserProfile(){
+              const self = this;
+
+              // build params
+              let history ={"id_user":"Some UUID", "history":[]};
+              let numberOfMonths = 0
+              this.availableMonths.forEach(function(month){
+                let alimentacao = 0.0;
+                let casa = 0.0;
+                let compras = 0.0;
+                let educacao = 0.0;
+                let lazer = 0.0;
+                let mercado = 0.0;
+                let saude = 0.0;
+                let seguros = 0.0;
+                let transporte = 0.0;
+                let outros = 0.0;
+                self.loadMonthTransactions(month);
+                self.loadMonthDetails(month);
+                self.loadCategoriesPercentages();
+                self.activeMonth.categories.forEach(function(transaction){
+                  if (transaction.name == 'Alimentação') { alimentacao = transaction.percentage / 100; }
+                  if (transaction.name == 'Casa') { casa = transaction.percentage / 100; }
+                  if (transaction.name == 'Compras') { compras = transaction.percentage / 100; }
+                  if (transaction.name == 'Educação') { educacao = transaction.percentage / 100; }
+                  if (transaction.name == 'Lazer e viagem') { lazer = transaction.percentage / 100; }
+                  if (transaction.name == 'Mercado') { mercado = transaction.percentage / 100; }
+                  if (transaction.name == 'Saúde e bem-estar') { saude = transaction.percentage / 100; }
+                  if (transaction.name == 'Seguros') { seguros = transaction.percentage / 100; }
+                  if (transaction.name == 'Transporte') { transporte = transaction.percentage / 100; }
+                  if (transaction.name == 'Outros') { outros = transaction.percentage / 100; }
+                });
+                numberOfMonths++;
+                if(alimentacao.length < numberOfMonths){ alimentacao = 0.0; }
+                if(casa.length < numberOfMonths){ casa = 0.0; }
+                if(compras.length < numberOfMonths){ compras = 0.0; }
+                if(educacao.length < numberOfMonths){ educacao = 0.0; }
+                if(lazer.length < numberOfMonths){ lazer = 0.0; }
+                if(mercado.length < numberOfMonths){ mercado = 0.0; }
+                if(saude.length < numberOfMonths){ saude = 0.0; }
+                if(seguros.length < numberOfMonths){ seguros = 0.0; }
+                if(transporte.length < numberOfMonths){ transporte = 0.0; }
+                if(outros.length < numberOfMonths){ outros = 0.0; }
+                history_item = {
+                  month: month.id,
+                  totalAmount: self.activeMonth.totalAmount,
+                  categories: [
+                   ["Casa", casa],
+                   ["Transporte", transporte],
+                   ["Seguros", seguros],
+                   ["Alimentação", alimentacao],
+                   ["Mercado", mercado],
+                   ["Compras", compras],
+                   ["Saúde e bem-estar", saude],
+                   ["Lazer e viagem", lazer],
+                   ["Educação", educacao],
+                   ["Outros", outros]
+                  ]
+                }
+                history.history.push(history_item);
+              });
+              console.log('history', history);
+              this.selectMonth(this.availableMonths[0], false);
+
+              // make request
+              const headers = { 
+                'Content-Type': 'application/json;charset=UTF-8',
+                'Access-Control-Allow-Origin' : '*'
+              };
+              
+              this.startLoader();
+              axios.post('https://api.platform.smartfy-wrk.smartfylabs.com/pfm/profiler', history, {headers: headers})
+              .then(response => {
+                console.log('profiler response', response.data);
+                self.userProfile = [];
+                self.userProfile.push(this.getProfileByIndex(response.data.ordered_spendings_categories[0]));
+                self.showProfiler = true;
+                self.stopLoader();
+                self.getUserRecommender(response.data);
+              })
+              .catch(error => {
+                console.log('profiler error', error);
+                this.stopLoader();
+              });
+              
+            },
+            isInAllMonths(month){
+              let inAllMonths = false;
+              this.allMonths.forEach(function(availableMonth){
+                if(availableMonth.id == month.id){
+                  inAllMonths = true;
+                }
+              });
+              return inAllMonths;
+            },
+            allMonthsTransactions(month){
+              let transactions = [];
+              this.allMonths.forEach(function(availableMonth){
+                
+                if(availableMonth.id == month.id){
+                  transactions = availableMonth.transactions;
+                }
+              });
+              return transactions;
+            },
+            postCategories(month, callback) {
+
+              if(this.isInAllMonths(month)){
+                this.categorizedMonthlyTransactions = this.allMonthsTransactions(month);
+                console.log('CACHED response', this.categorizedMonthlyTransactions);
+                return;
+              }
+
+              // this.startLoader();
+              let monthlyTransactions = this.monthlyTransactions;
+              let categorizedMonthlyTransactions = [];
+
+              const headers = { 
+                'Content-Type': 'application/json;charset=UTF-8',
+                'Access-Control-Allow-Origin' : '*'
+              };
+              let data = {"transactions":this.getTransactionsByMonth(month)};
+              const self = this;
+              this.startLoader();
+              axios.post('https://api.platform.smartfy-wrk.smartfylabs.com/pfm/open-categories', data, {headers: headers})
+              .then(response => {
+                console.log('response', response.data);
+                self.categorizedMonthlyTransactions = response.data.transactions;
+                self.allMonths.push({
+                  id: month.id,
+                  name: month.name,
+                  transactions: response.data.transactions
+                });
+                self.stopLoader();
+                if(callback != undefined){
+                  callback();
+                }
+                // this.stopLoader();
+              })
+              .catch(error => {
+                console.log('error', error);
+                this.categorizedMonthlyTransactions = [];
+                this.stopLoader();
+              });
+
+              // ---
+            },
+            loadAvalailableMonths() {
+              this.startLoader();
+              this.availableMonths = [
+                {
+                  name: 'Dez 2021',
+                  id: '2021-12'
+                },
+                {
+                  name: 'Jan 2022',
+                  id: '2022-01'
+                },
+                {
+                  name: 'Fev 2022',
+                  id: '2022-02'
+                },
+                {
+                  name: 'Mar 2022',
+                  id: '2022-03'
+                },
+              ];
+              this.activeMonthId = this.availableMonths[0].id;
+              console.log(this.availableMonths);
+              console.log(this.activeMonthId);
+              this.stopLoader();
+            },
+            getTransactionsByMonth(month){
+              if(month.id === '2021-12'){
+                return [
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Supermercado Galassi", "amount": 52.7},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "PIX Andréa", "amount": 516.2},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Colégio San Conrado", "amount": 1002.0},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Wizard idiomas", "amount": 215.45},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Agência viagens CorteSul", "amount": 234.0},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Supermercado Galassi", "amount": 251.15},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a2","chargeIdentificator": "Seg protegido cartão PLUS", "amount": 10.5}];
+              } else if(month.id === '2022-01'){
+                return [
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Supermercado Colosso", "amount": 52.7},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Restaurante Casa Nostra", "amount": 100.0},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Hotel Casa Grande", "amount": 300.52},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Cinemark", "amount": 33.7},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Colégio San Conrado", "amount": 1000.0},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Padaria Guanabara", "amount": 12.4},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Padaria Guanabara", "amount": 97.10},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Pedágio", "amount": 20.50},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a2","chargeIdentificator": "Pizzaria Napoli", "amount": 127.13}];
+              } else if(month.id === '2022-02'){
+                return [
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Supermercado Colosso", "amount": 500.40},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Restaurante Casa Nostra", "amount": 50.0},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Padaria Guanabara", "amount": 77.23},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Colégio San Conrado", "amount": 1005.55},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Pedágio", "amount": 80.88},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Posto Pega Rápido", "amount": 233.65},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a2","chargeIdentificator": "Pizzaria Napoli", "amount": 147.93}];
+              } else if(month.id === '2022-03'){
+                return [
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "PIX Carla", "amount": 240.0},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Padaria Guanabara", "amount": 32.15},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Hotel Ninho do Falc", "amount": 355.0},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Posto Pega Rápido", "amount": 340.3},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Colégio San Conrado", "amount": 1001.7},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Bar do Zé", "amount": 90.20},
+                {"transactionId": "75872d1d-91e5-4843-850d-efb952f575a2","chargeIdentificator": "Pizzaria Napoli", "amount": 324.98}];
+              }
+            },
+            loadMonthTransactions(month, callback){
+              if(month.id === '2021-12'){
+                this.monthlyTransactions = this.getTransactionsByMonth(month);
+              } else if(month.id === '2022-01'){
+                this.monthlyTransactions = this.getTransactionsByMonth(month);
+              } else if(month.id === '2022-02'){
+                this.monthlyTransactions = this.getTransactionsByMonth(month);
+              } else if(month.id === '2022-03'){
+                this.monthlyTransactions = this.getTransactionsByMonth(month);
+              }
+              
+              if(this.loadingMonths.length < this.availableMonths.length){
+                this.loadingMonths.push(month.id);
+              }
+              // this.loadingMonths.push(month.id);tartAllMonthsChart();
+              // else {
+              //   return;
+              // }
+
+              this.postCategories(month, callback);
+            },
+            loadMonthDetails(month){
+              this.activeMonth = {
+                name: month.name,
+                id: month.id,
+                transactions: this.categorizedMonthlyTransactions,
+                totalAmount: this.categorizedMonthlyTransactions.reduce((acc, cur) => acc + cur.amount, 0),
+                categories: []
+              }
+              // categorize transactions percentages
+              let categorizedMonthlyTransactions = this.categorizedMonthlyTransactions;
+              let categorizedMonthlyTransactionsWithPercentages = [];
+              let totalAmount = this.activeMonth.totalAmount;
+              categorizedMonthlyTransactions.forEach(function(transaction){
+                let transactionWithPercentage = transaction;
+                transactionWithPercentage.percentage = (transaction.amount / totalAmount) * 100;
+                categorizedMonthlyTransactionsWithPercentages.push(transactionWithPercentage);
+              });
+
+              this.categorizedMonthlyTransactions = categorizedMonthlyTransactionsWithPercentages;
+              console.log('categorizedMonthlyTransactions', this.categorizedMonthlyTransactions)
+            },
+            selectMonth(month, firstTime) {
+              this.activeMonthId = month.id;
+              const self = this;
+              this.loadMonthTransactions(month, function(){
+                self.loadMonthDetails(month);
+                self.loadCategoriesPercentages();
+                if(!firstTime){
+                  self.updateMonthlyChart();
+                }
+              });
+              this.loadMonthDetails(month);
+              this.loadCategoriesPercentages();
+              if(!firstTime){
+                this.updateMonthlyChart();
+              }
+              
+              
+            },
+            compareCategories(a, b) {
+              if (a.percentage < b.percentage)
+                return -1;
+              if (a.percentage > b.percentage)
+                return 1;
+              return 0;
+            },
+            loadCategoriesPercentages(){
+              let categories = []
+              let categorizedMonthlyTransactions = this.categorizedMonthlyTransactions;
+              categorizedMonthlyTransactions.forEach(function(transaction){
+                let category = transaction.expense_category;
+
+                let categoryIndex = categories.findIndex(function(categoryItem){
+                  return categoryItem.name === category;
+                });
+
+                if (categoryIndex === -1) {
+                  categories.push({
+                    name: category,
+                    percentage: transaction.percentage
+                  });
+                } else {
+                  categories[categoryIndex].percentage += transaction.percentage;
+                }
+              });
+              this.activeMonth.categories = categories.sort(this.compareCategories).reverse();
+              console.log('this.activeMonth.categories', this.activeMonth.categories);
+            },
+            getCategoryColor(category){
+              if (category === 'Alimentação') {
+                return 'rgb(199, 61, 61)';
+              } else if (category === 'Casa') {
+                return 'rgb(199, 185, 61)';
+              } else if (category === 'Compras') {
+                return 'rgb(61, 199, 96)';
+              } else if (category === 'Educação') {
+                return 'rgb(61, 82, 199)';
+              } else if (category === 'Lazer e viagem') {
+                return 'rgb(183, 61, 199)';
+              } else if (category === 'Mercado') {
+                return 'rgb(104, 81, 52)';
+              } else if (category === 'Saúde e bem-estar') {
+                return 'rgb(61, 167, 199)';
+              } else if (category === 'Seguros') {
+                return 'rgb(22, 83, 25)';
+              } else if (category === 'Transporte') {
+                return 'rgb(202, 123, 58)';
+              } else if (category === 'Outros') {
+                return 'rgb(61, 183, 199)';
+              }
+              return 'rgb(199, 61, 61)';
+            },
+            updateMonthlyChart(){
+
+              // monthlyChartContext.data.datasets[0].data = [12, 123, 44]; // remove the data first
+
+              const onlyActiveMonthCategory = [];
+              const backgroundColors = [];
+              const self = this;
+              this.activeMonth.categories.forEach(function(transaction){
+                onlyActiveMonthCategory.push(transaction.percentage);
+                backgroundColors.push(self.getCategoryColor(transaction.name));
+              });
+
+              console.log('onlyActiveMonthCategory', onlyActiveMonthCategory);
+              console.log('backgroundColors', backgroundColors);
+
+              monthlyChartContext.data.datasets[0].data = onlyActiveMonthCategory;
+              monthlyChartContext.data.datasets[0].backgroundColor = backgroundColors;
+
+              monthlyChartContext.update();
+
+            },
+            startMonthlyChart(){
+              const onlyActiveMonthCategory = [];
+              const backgroundColors = [];
+              const self = this;
+              this.activeMonth.categories.forEach(function(transaction){
+                onlyActiveMonthCategory.push(transaction.percentage);
+                backgroundColors.push(self.getCategoryColor(transaction.name));
+              });
+
+              // First chart [monthly]
+              const ctx = document.getElementById('month-chart').getContext('2d');
+              monthlyChartContext = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                  datasets: [{
+                    label: '% de gastos por categoria',
+                    data: onlyActiveMonthCategory,
+                    backgroundColor: backgroundColors
+                  }]
+                }
+              });
+            },
+            startAllMonthsChart(){
+              const onlyActiveMonthCategory = [];
+              const backgroundColors = [];
+              const self = this;
+              this.activeMonth.categories.forEach(function(transaction){
+                onlyActiveMonthCategory.push(transaction.percentage);
+                backgroundColors.push(self.getCategoryColor(transaction.name));
+              });
+
+              const monthsList = [];
+              const alimentacao = [];
+              const casa = [];
+              const compras = [];
+              const educacao = [];
+              const lazer = [];
+              const mercado = [];
+              const saude = [];
+              const seguros = [];
+              const transporte = [];
+              const outros = [];
+              let numberOfMonths = 0
+              this.availableMonths.forEach(function(month){
+                monthsList.push(month.name);
+                self.loadMonthTransactions(month);
+                self.loadMonthDetails(month);
+                self.loadCategoriesPercentages();
+                self.activeMonth.categories.forEach(function(transaction){
+                  if (transaction.name == 'Alimentação') { alimentacao.push(transaction.percentage); }
+                  if (transaction.name == 'Casa') { casa.push(transaction.percentage); }
+                  if (transaction.name == 'Compras') { compras.push(transaction.percentage); }
+                  if (transaction.name == 'Educação') { educacao.push(transaction.percentage); }
+                  if (transaction.name == 'Lazer e viagem') { lazer.push(transaction.percentage); }
+                  if (transaction.name == 'Mercado') { mercado.push(transaction.percentage); }
+                  if (transaction.name == 'Saúde e bem-estar') { saude.push(transaction.percentage); }
+                  if (transaction.name == 'Seguros') { seguros.push(transaction.percentage); }
+                  if (transaction.name == 'Transporte') { transporte.push(transaction.percentage); }
+                  if (transaction.name == 'Outros') { outros.push(transaction.percentage); }
+                });
+                numberOfMonths++;
+                if(alimentacao.length < numberOfMonths){ alimentacao.push(0); }
+                if(casa.length < numberOfMonths){ casa.push(0); }
+                if(compras.length < numberOfMonths){ compras.push(0); }
+                if(educacao.length < numberOfMonths){ educacao.push(0); }
+                if(lazer.length < numberOfMonths){ lazer.push(0); }
+                if(mercado.length < numberOfMonths){ mercado.push(0); }
+                if(saude.length < numberOfMonths){ saude.push(0); }
+                if(seguros.length < numberOfMonths){ seguros.push(0); }
+                if(transporte.length < numberOfMonths){ transporte.push(0); }
+                if(outros.length < numberOfMonths){ outros.push(0); }
+              });
+
+              this.selectMonth(this.availableMonths[0], false);
+
+              // Second chart [all months]
+              if(monthsChartContext != null){
+                monthsChartContext.destroy();
+              }
+              const ctx2 = document.getElementById('months-chart').getContext('2d');
+              monthsChartContext = new Chart(ctx2, {
+                  type: 'line',
+                  data: {
+                      labels: monthsList,
+                      datasets: [
+                          {   
+                              label: 'Alimentação',
+                              data: alimentacao,
+                              borderColor: this.getCategoryColor('Alimentação'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Casa',
+                              data: casa,
+                              borderColor: this.getCategoryColor('Casa'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Compras',
+                              data: compras,
+                              borderColor: this.getCategoryColor('Compras'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Educação',
+                              data: educacao,
+                              borderColor: this.getCategoryColor('Educação'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Lazer e viagem',
+                              data: lazer,
+                              borderColor: this.getCategoryColor('Lazer e viagem'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Mercado',
+                              data: mercado,
+                              borderColor: this.getCategoryColor('Mercado'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Saúde e bem-estar',
+                              data: saude,
+                              borderColor: this.getCategoryColor('Saúde e bem-estar'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Seguros',
+                              data: seguros,
+                              borderColor: this.getCategoryColor('Seguros'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Transporte',
+                              data: transporte,
+                              borderColor: this.getCategoryColor('Transporte'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Outros',
+                              data: outros,
+                              borderColor: this.getCategoryColor('Outros'),
+                              fill: false,
+                              tension: 0.4
+                          }
+                        ]
+                  },
+                  interaction: {
+                    intersect: false,
+                  },
+                  scales: {
+                    x: {
+                      display: true,
+                      title: {
+                        display: true
+                      }
+                    },
+                    y: {
+                      display: true,
+                      title: {
+                        display: true,
+                        text: 'Value'
+                      },
+                      suggestedMin: 0,
+                      suggestedMax: 100
+                    }
+                  }
+              });
+            },
+            startCharts(){
+
+              const onlyActiveMonthCategory = [];
+              const backgroundColors = [];
+              const self = this;
+              this.activeMonth.categories.forEach(function(transaction){
+                onlyActiveMonthCategory.push(transaction.percentage);
+                backgroundColors.push(self.getCategoryColor(transaction.name));
+              });
+
+              console.log('onlyActiveMonthCategory', onlyActiveMonthCategory);
+              console.log('backgroundColors', backgroundColors);
+              // this.activeMonth.categories.forEach(function(category){
+              //   let categoryColor = this.getCategoryColor(category.name);
+              //   this.monthlyChartContext.data.datasets[0].data.push(category.percentage);
+              //   this.monthlyChartContext.data.datasets[0].backgroundColor.push(categoryColor);
+              // }.bind(this));
+
+              // First chart [monthly]
+              const ctx = document.getElementById('month-chart').getContext('2d');
+              monthlyChartContext = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                  datasets: [{
+                    label: '% de gastos por categoria',
+                    data: onlyActiveMonthCategory,
+                    backgroundColor: backgroundColors
+                  }]
+                }
+              });
+
+              const monthsList = [];
+              const alimentacao = [];
+              const casa = [];
+              const compras = [];
+              const educacao = [];
+              const lazer = [];
+              const mercado = [];
+              const saude = [];
+              const seguros = [];
+              const transporte = [];
+              const outros = [];
+              let numberOfMonths = 0
+              this.availableMonths.forEach(function(month){
+                monthsList.push(month.name);
+                self.loadMonthTransactions(month);
+                self.loadMonthDetails(month);
+                self.loadCategoriesPercentages();
+                self.activeMonth.categories.forEach(function(transaction){
+                  if (transaction.name == 'Alimentação') { alimentacao.push(transaction.percentage); }
+                  if (transaction.name == 'Casa') { casa.push(transaction.percentage); }
+                  if (transaction.name == 'Compras') { compras.push(transaction.percentage); }
+                  if (transaction.name == 'Educação') { educacao.push(transaction.percentage); }
+                  if (transaction.name == 'Lazer e viagem') { lazer.push(transaction.percentage); }
+                  if (transaction.name == 'Mercado') { mercado.push(transaction.percentage); }
+                  if (transaction.name == 'Saúde e bem-estar') { saude.push(transaction.percentage); }
+                  if (transaction.name == 'Seguros') { seguros.push(transaction.percentage); }
+                  if (transaction.name == 'Transporte') { transporte.push(transaction.percentage); }
+                  if (transaction.name == 'Outros') { outros.push(transaction.percentage); }
+                });
+                numberOfMonths++;
+                if(alimentacao.length < numberOfMonths){ alimentacao.push(0); }
+                if(casa.length < numberOfMonths){ casa.push(0); }
+                if(compras.length < numberOfMonths){ compras.push(0); }
+                if(educacao.length < numberOfMonths){ educacao.push(0); }
+                if(lazer.length < numberOfMonths){ lazer.push(0); }
+                if(mercado.length < numberOfMonths){ mercado.push(0); }
+                if(saude.length < numberOfMonths){ saude.push(0); }
+                if(seguros.length < numberOfMonths){ seguros.push(0); }
+                if(transporte.length < numberOfMonths){ transporte.push(0); }
+                if(outros.length < numberOfMonths){ outros.push(0); }
+              });
+
+              this.selectMonth(this.availableMonths[0], false);
+
+              // Second chart [all months]
+              const ctx2 = document.getElementById('months-chart').getContext('2d');
+              monthsChartContext = new Chart(ctx2, {
+                  type: 'line',
+                  data: {
+                      labels: monthsList,
+                      datasets: [
+                          {   
+                              label: 'Alimentação',
+                              data: alimentacao,
+                              borderColor: this.getCategoryColor('Alimentação'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Casa',
+                              data: casa,
+                              borderColor: this.getCategoryColor('Casa'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Compras',
+                              data: compras,
+                              borderColor: this.getCategoryColor('Compras'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Educação',
+                              data: educacao,
+                              borderColor: this.getCategoryColor('Educação'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Lazer e viagem',
+                              data: lazer,
+                              borderColor: this.getCategoryColor('Lazer e viagem'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Mercado',
+                              data: mercado,
+                              borderColor: this.getCategoryColor('Mercado'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Saúde e bem-estar',
+                              data: saude,
+                              borderColor: this.getCategoryColor('Saúde e bem-estar'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Seguros',
+                              data: seguros,
+                              borderColor: this.getCategoryColor('Seguros'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Transporte',
+                              data: transporte,
+                              borderColor: this.getCategoryColor('Transporte'),
+                              fill: false,
+                              tension: 0.4
+                          },
+                          {
+                              label: 'Outros',
+                              data: outros,
+                              borderColor: this.getCategoryColor('Outros'),
+                              fill: false,
+                              tension: 0.4
+                          }
+                        ]
+                  },
+                  interaction: {
+                    intersect: false,
+                  },
+                  scales: {
+                    x: {
+                      display: true,
+                      title: {
+                        display: true
+                      }
+                    },
+                    y: {
+                      display: true,
+                      title: {
+                        display: true,
+                        text: 'Value'
+                      },
+                      suggestedMin: 0,
+                      suggestedMax: 100
+                    }
+                  }
+              });
+            },
+            
+        },
+        watch: {
+          categorizedMonthlyTransactions(newValue, oldValue) {
+            if(newValue.length > 0){
+              if(monthlyChartContext == null){
+                this.startMonthlyChart();
+              } else {
+                this.updateMonthlyChart();
+                // this.startAllMonthsChart();
+              }
+            }
+          },
+          allMonths: {
+            handler: function (newValue, oldValue) {
+              console.log('allMonths', newValue.length, this.loadingMonths.length, this.allMonths.length);
+              if(this.loadingMonths.length <= this.allMonths.length){
+                this.startAllMonthsChart();
+              }
+            },
+            deep: true
+          },
+          // loadingQueue: {
+          //   handler: function (newValue, oldValue) {
+          //     console.log('loadingQueue', newValue.length, oldValue.length, this.$loading);
+          //     if(newValue.length == 0 && oldValue.length > 0){
+          //       console.log('loadingQueue HIDE');
+          //       this.loader.hide();
+          //     }
+          //     if(newValue.length > 0 && oldValue.length == 0){
+          //       console.log('loadingQueue SHOW');
+          //       this.loader = this.$loading.show({
+          //           // Optional parameters
+          //           container: this.fullPage ? null : this.$refs.formContainer,
+          //           canCancel: false,
+          //           onCancel: this.onCancel,
+          //       });
+          //     }
+          //   },
+          //   deep: true
+          // }
+          // isLoading(newIsLoading) {
+          //   if (newIsLoading) {
+          //     console.log("Turning on the loader");
+          //   } 
+          // }
+        },
+        mounted() {
+          this.loadAvalailableMonths();
+          this.selectMonth(this.availableMonths[0], true);
+          this.postCategories(this.availableMonths[0]);
+          this.startCharts();
+          this.updateMonthlyChart();
+        }
+      });
+      app.use(VueLoading.Plugin);
+      app.component('loading', VueLoading.Component)
+      // app.component("line-chart", LineChart);
+      app.mount('#app')
+    </script>
+
+  </body>
+</html>
