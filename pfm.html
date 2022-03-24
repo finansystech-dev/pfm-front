@@ -101,15 +101,15 @@
 
         <div class="row personas" v-if="showRecommender">
           <div class="column">
-            <span class="persona-label">Categoria sugerida<br>para minimizar gastos:</span><br>
+            <span class="persona-label">Oportunidade<br>sugerida:</span><br>
             <span class="persona-tag">{{recommenderData.recommender.category}}</span>
           </div>
           <div class="column">
-            <span class="persona-label">Média de gastos<br>da categoria:</span><br>
+            <span class="persona-label">Média de gastos<br>mensal:</span><br>
             <span class="persona-tag">{{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(recommenderData.recommender.mean_month_spendings)}}</span>
           </div>
           <div class="column">
-            <span class="persona-label">Quantia sugerida<br>para diminuir os gastos:</span><br>
+            <span class="persona-label">Potencial de gastos<br>na categoria sugerida:</span><br>
             <span class="persona-tag">{{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(recommenderData.recommender.potential)}}</span>
           </div>
         </div> 
