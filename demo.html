@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Milligram provides a minimal setup of styles for a fast and clean starting point. Specially designed for better performance and higher productivity with fewer properties to reset resulting in cleaner code."
+    />
+    <title>Personal Finance Management | Finansystech</title>
+    <link rel="icon" href="images/favicon.ico" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic"
+    />
+    <link rel="stylesheet" href="/lib/normalize.css/normalize.css" />
+    <link rel="stylesheet" href="/lib/milligram/dist/milligram.min.css" />
+    <link rel="stylesheet" href="/styles/main.css" />
+    <link rel="stylesheet" href="/styles/custom.css" />
+  </head>
+  <body>
+    <main class="wrapper">
+      <div class="container">
+        <div class="row">
+          <div class="column months-tabs">
+            <div class="month-tab">
+              <span>Dez 2021</span>
+            </div>
+            <div class="month-tab">
+              <span>Jan 2022</span>
+            </div>
+            <div class="month-tab active">
+              <span>Fev 2022</span>
+            </div>
+            <div class="month-tab">
+              <span>Mar 2022</span>
+            </div>
+          </div>
+
+          <div class="column monthly-chart">
+            <canvas id="month-chart" width="100%" height="100%"></canvas>
+          </div>
+
+          <div class="column monthly-categories">
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Alimentação</span>
+              </div>
+              <div class="category-value">
+                <span>35%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(199, 61, 61); width: 35%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Casa</span>
+              </div>
+              <div class="category-value">
+                <span>20%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(199, 185, 61); width: 20%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Compras</span>
+              </div>
+              <div class="category-value">
+                <span>10%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(61, 199, 96); width: 10%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Educação</span>
+              </div>
+              <div class="category-value">
+                <span>5%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(61, 82, 199); width: 5%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Lazer e viagem</span>
+              </div>
+              <div class="category-value">
+                <span>5%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(183, 61, 199); width: 5%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Mercado</span>
+              </div>
+              <div class="category-value">
+                <span>5%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(104, 81, 52); width: 5%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Saúde e bem-estar</span>
+              </div>
+              <div class="category-value">
+                <span>5%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(61, 167, 199); width: 5%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Seguros</span>
+              </div>
+              <div class="category-value">
+                <span>5%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(22, 83, 25); width: 5%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Transporte</span>
+              </div>
+              <div class="category-value">
+                <span>5%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(202, 123, 58); width: 5%"></div>
+              </div>
+            </div>
+
+            <div class="category-item">
+              <div class="category-name">
+                <span>Outros</span>
+              </div>
+              <div class="category-value">
+                <span>5%</span>
+              </div>
+              <div class="category-progress-bar">
+                <div class="category-percent" style="background-color: rgb(61, 183, 199); width: 5%"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="column all-available-chart">
+            <canvas id="months-chart" width="100%" max-height="300px"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <section class="container">
+          <p>
+            Designed by
+            <a target="_blank" href="https://finansystech.com.br"
+              >Finansystech</a
+            >.
+          </p>
+        </section>
+      </footer>
+    </main>
+
+    <script src="/scripts/chart.min.js"></script>
+    <script src="/scripts/main.js"></script>
+    
+  </body>
+</html>
