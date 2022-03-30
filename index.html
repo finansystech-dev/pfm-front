@@ -114,6 +114,22 @@
           </div>
         </div> 
 
+        <!-- Mean gains -->
+        <div class="row personas" v-if="showMeanRevenue">
+          <div class="column">
+            <span class="persona-label">Receita média:</span><br>
+            <span class="persona-tag">{{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(meanRevenueData.mean_revenue)}}</span>
+          </div>
+          <div class="column">
+            <span class="persona-label">Resultado médio:</span><br>
+            <span class="persona-tag">{{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(meanRevenueData.mean_revenue - recommenderData.recommender.mean_month_spendings)}}</span>
+          </div>
+          <div class="column">
+            <span class="persona-label">Perfil:</span><br>
+            <span class="persona-tag" v-if="userProfileByMeanRevenue != ''">{{userProfileByMeanRevenue}}</span>
+          </div>
+        </div> 
+
 
       </div>
 
@@ -160,6 +176,9 @@
             isLoading: false,
             showProfiler: false,
             showRecommender: false,
+            showMeanRevenue: false,
+            meanRevenueData: {},
+            userProfileByMeanRevenue: "",
             // recommender data
             recommenderData: {
               warnings: {
@@ -237,7 +256,7 @@
               };
               
               this.startLoader();
-              axios.post('https://api.platform.smartfy-wrk.smartfylabs.com/pfm/recommender', profilerData, {headers: headers})
+              axios.post('http://kong.demo.finansystech.com.br/pfm/recommender', profilerData, {headers: headers})
               .then(response => {
                 console.log('recommender response', response.data);
                 self.recommenderData = {
@@ -333,7 +352,7 @@
               };
               
               this.startLoader();
-              axios.post('https://api.platform.smartfy-wrk.smartfylabs.com/pfm/profiler', history, {headers: headers})
+              axios.post('http://kong.demo.finansystech.com.br/pfm/profiler', history, {headers: headers})
               .then(response => {
                 console.log('profiler response', response.data);
                 self.userProfile = [];
@@ -341,6 +360,7 @@
                 self.showProfiler = true;
                 self.stopLoader();
                 self.getUserRecommender(response.data);
+                self.getUserMeanRevenue();
               })
               .catch(error => {
                 console.log('profiler error', error);
@@ -386,7 +406,7 @@
               let data = {"transactions":this.getTransactionsByMonth(month)};
               const self = this;
               this.startLoader();
-              axios.post('https://api.platform.smartfy-wrk.smartfylabs.com/pfm/open-categories', data, {headers: headers})
+              axios.post('http://kong.demo.finansystech.com.br/pfm/open-categories', data, {headers: headers})
               .then(response => {
                 console.log('response', response.data);
                 self.categorizedMonthlyTransactions = response.data.transactions;
@@ -433,6 +453,134 @@
               console.log(this.availableMonths);
               console.log(this.activeMonthId);
               this.stopLoader();
+            },
+            getUserProfileByMeanProfit(mean_revenue, mean_profit){
+              // let userProfileByMeanRevenue = {
+              //   id: 2,
+              //   category: "Mean Profit",
+              // };
+              const headers = { 
+                'Content-Type': 'application/json;charset=UTF-8',
+                'Access-Control-Allow-Origin' : '*'
+              };
+              let data = { "data": { "mean_revenue": mean_revenue, "mean_profit": mean_profit} };
+              const self = this;
+              this.startLoader();
+              axios.post('http://kong.demo.finansystech.com.br/pfm/profiler-by-profit', data, {headers: headers})
+              .then(response => {
+                console.log('profiler-by-profit response', response.data);
+                if(response.data.id == 0){
+                  self.userProfileByMeanRevenue = "Endividado";
+                } else if(response.data.id == 1){
+                  self.userProfileByMeanRevenue = "Gastão";
+                } else if(response.data.id == 2){
+                  self.userProfileByMeanRevenue = "Não consegue poupar";
+                } else if(response.data.id == 3){
+                  self.userProfileByMeanRevenue = "Poupador";
+                } else if(response.data.id == 4){
+                  self.userProfileByMeanRevenue = "Investidor";
+                }
+                self.stopLoader();
+              })
+              .catch(error => {
+                console.log('error', error);
+                this.userProfileByMeanRevenue = "";
+                this.stopLoader();
+              });
+            },
+            getUserMeanRevenue(){
+              const self = this;
+
+              // make request
+              const headers = { 
+                'Content-Type': 'application/json;charset=UTF-8',
+                'Access-Control-Allow-Origin' : '*'
+              };
+              
+              this.startLoader();
+              // let mean_revenue = {
+              //   number_of_months: 4,
+              //   mean_revenue: 5302.34,
+              //   max_revenue: 5480.00,
+              //   min_revenue: 5202.21,
+              //   total_revenue: 21347.00,
+              //   month_revenues: [
+              //     {
+              //       month: "2020-12",
+              //       revenue: 5302.34
+              //     },
+              //     {
+              //       month: "2020-11",
+              //       revenue: 5302.34
+              //     },
+              //     {
+              //       month: "2020-10",
+              //       revenue: 5302.34
+              //     },
+              //     {
+              //       month: "2020-09",
+              //       revenue: 5302.34
+              //     }
+              //   ]
+              // };
+
+              let monthly_credit_transactions = {"data": []};
+              for(let i = 0; i < this.availableMonths.length; i++){
+                monthly_credit_transactions.data.push({
+                  month: this.availableMonths[i].id,
+                  transactions: this.getCreditTransactionsByMonth(this.availableMonths[i])
+                });
+              }
+
+              console.log("monthly_credit_transactions", monthly_credit_transactions);
+
+              axios.post('http://kong.demo.finansystech.com.br/pfm/mean-revenue', monthly_credit_transactions, {headers: headers})
+              .then(response => {
+                console.log('mean-revenue response', response.data);
+                self.meanRevenueData = response.data;
+                self.showMeanRevenue = true;
+                self.stopLoader();
+                self.getUserProfileByMeanProfit(self.meanRevenueData.mean_revenue, self.meanRevenueData.mean_revenue - self.recommenderData.recommender.mean_month_spendings);
+              })
+              .catch(error => {
+                console.log('recommender error', error);
+                this.stopLoader();
+              });
+              
+            },
+            getCreditTransactionsByMonth(month){
+              if(month.id === '2021-12'){
+                return [
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Salário Dez","amount": 5222.7,"date": "2021-12-01T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "PIX transf Andréa","amount": 516.2,"date": "2021-12-04T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Rend pago aplic aut apr","amount": 0.22,"date": "2021-12-10T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Rend pago aplic aut mais","amount": 1.05,"date": "2021-12-11T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "cor dividendos egie3","amount": 5.47,"date": "2021-12-21T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "cor dividendos faed11","amount": 20.13,"date": "2021-12-21T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a2","chargeIdentificator": "remuneracao","amount": 1000.5,"date": "2021-12-24T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a2","chargeIdentificator": "bonus vend","amount": 20.5,"date": "2021-12-27T00:00:00"}
+                ];
+              } else if(month.id === '2022-01'){
+                return [
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Salário Dez","amount": 5222.7,"date": "2021-12-01T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Rend pago aplic aut apr","amount": 0.54,"date": "2021-12-11T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "cor dividendos faed11","amount": 20.42,"date": "2021-12-15T00:00:00"},
+                ];
+              } else if(month.id === '2022-02'){
+                return [
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Salário Dez","amount": 5225.2,"date": "2021-12-01T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Rend pago aplic aut apr","amount": 0.02,"date": "2021-12-07T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "cor dividendos faed11","amount": 21.3,"date": "2021-12-16T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a2","chargeIdentificator": "bonus vend","amount": 15.0,"date": "2021-12-27T00:00:00"}
+                ];
+              } else if(month.id === '2022-03'){
+                return [
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Salário Dez","amount": 5250.0,"date": "2021-12-01T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "PIX transf Andréa","amount": 26.1,"date": "2021-12-01T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "Rend pago aplic aut apr","amount": 0.07,"date": "2021-12-22T00:00:00"},
+                    {"id": "75872d1d-91e5-4843-850d-efb952f575a1","chargeIdentificator": "cor dividendos faed11","amount": 10.13,"date": "2021-12-25T00:00:00"},
+                ];
+              }
             },
             getTransactionsByMonth(month){
               if(month.id === '2021-12'){
